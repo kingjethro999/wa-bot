@@ -1,31 +1,25 @@
 import "dotenv/config";
+import OpenAI from "openai";
 import axios from "axios";
 import { Client, Message } from "@open-wa/wa-automate";
 import { logWithColor } from "../utils/logger";
 import { sendTextMessage } from "../utils/sender";
+import openaiClient from "../utils/openai";
 
 /**
- * Sends request to LLM model then returns the response.
+ * Sends request to ChatGPT then returns the response.
  * @param {string} prompt The chat prompt.
  */
 const generateChat = async (prompt: string) => {
-  const baseUrl =
-    "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1";
-  const params = {
-    headers: {
-      Authorization: process.env.API_KEY,
-      "Content-Type": "application/json",
-    },
-  };
-  // Send request to the huggingface model API
+  // Send request to the ChatGPT model API
   try {
-    const result = await axios.post(
-      baseUrl,
-      JSON.stringify({ inputs: prompt }),
-      params
-    );
+    const completion = await openaiClient.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "gpt-3.5-turbo",
+    });
+
     // Return only the generated text
-    return result.data[0].generated_text;
+    return completion.choices[0].message.content;
   } catch (error) {
     logWithColor.red(error as unknown as string);
   }
@@ -42,8 +36,13 @@ const askAi = async (client: Client, message: Message) => {
     const prompt = splitMessage.slice(1).join(" ");
     // Calls generate chat function
     const response = await generateChat(prompt);
-    // Send the response through WhatsApp chat
-    await sendTextMessage(client, message.chatId, response);
+
+    if (response) {
+      // Send the response through WhatsApp chat
+      await sendTextMessage(client, message.chatId, response!);
+    } else {
+      await sendTextMessage(client, message.chatId, "AI bought some milk");
+    }
   } catch (error) {
     logWithColor.red(error as unknown as string);
   }
